@@ -217,5 +217,9 @@ TVM_REGISTER_GLOBAL("nnvm.graph.DeepCompare")
 .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue *rv) {
     *rv = GraphDeepCompare(args[0], args[1], args[2]);
   });
+
+
+TVM_REGISTER_NODE_TYPE(GraphKeyNode);
+
 }  // namespace compiler
 }  // namespace nnvm

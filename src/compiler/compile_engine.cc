@@ -323,19 +323,12 @@ TVM_REGISTER_GLOBAL("nnvm.compiler.MakeGraphKey")
     *rv = GraphKeyNode::make(args[0], args[1], args[2]);
   });
 
-// This can be used to extract workloads from nnvm compiler
-TVM_REGISTER_GLOBAL("nnvm.compiler.CacheItem2ScheduleArgs")
+TVM_REGISTER_GLOBAL("nnvm.compiler.Graph2ScheduleArgs")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    Array<tvm::NodeRef> item = args[0];
-
-    const GraphKeyNode *key = reinterpret_cast<const GraphKeyNode *>(item[0].get());
-    const GraphCacheEntryNode *value = reinterpret_cast<const GraphCacheEntryNode *>(item[1].get());
-
-    // extract arguments from cached item
-    Graph graph = key->graph;
-    const Array<tvm::Tensor> &inputs = key->inputs;
-    std::string target = args[1];
-    int master_idx = value->master_idx;
+    Graph graph = args[0];
+    const Array<tvm::Tensor> inputs = args[1];
+    std::string target = args[2];
+    int master_idx = args[3];
 
     Schedule sch;
     Array<tvm::Tensor> all_args;
@@ -354,6 +347,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     p->stream << "GraphFunc(name=" << op->func_name
               << ", addr=" << op << ")";
 });
+
+TVM_REGISTER_NODE_TYPE(GraphCacheEntryNode);
+TVM_REGISTER_NODE_TYPE(GraphFuncNode);
 
 }  // namespace compiler
 }  // namespace nnvm
