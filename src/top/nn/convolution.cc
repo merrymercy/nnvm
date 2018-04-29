@@ -219,6 +219,76 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2);
 
+NNVM_REGISTER_OP(_contrib_conv2d_winograd_6x6_3x3_weight_transform)
+.describe(R"code(Helper function of symbol.contrib.conv2d_winograd_6x6_3x3_without_weight_transform
+Separate this into another operator in order to enable Precompute Pass to compute the
+weight transformation in advance.
+
+- **weight**: (channels, in_channels, 3, 3])
+)code" NNVM_ADD_FILELINE)
+.add_argument("weight", "4D Tensor", "Weight tensor.")
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+  return std::vector<std::string>{"weight"};
+})
+.set_attr<FInferShape>("FInferShape", [](const nnvm::NodeAttrs& attrs,
+                                         std::vector<TShape> *in_shape,
+                                         std::vector<TShape> *out_shape) {
+  const TShape &wshape = (*in_shape)[0];
+
+  CHECK_EQ(wshape.ndim(), 4);
+  CHECK_EQ(wshape[2], 3);
+  CHECK_EQ(wshape[3], 3);
+
+  TShape oshape(4);
+  oshape[0] = oshape[1] = 6;
+  oshape[2] = wshape[0];
+  oshape[3] = wshape[1];
+
+  out_shape->clear();
+  out_shape->push_back(oshape);
+  return true;
+  })
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_support_level(5);
+
+NNVM_REGISTER_OP(_contrib_conv2d_winograd_6x6_3x3_without_weight_transform)
+.describe(R"code(Compute conv2d with 3x3 kernel and no stride by F(6,3) winograd algorithm.
+
+- **data**: Input is 4D array of shape  (batch_size, in_channels, height, width)
+- **weight**: (channels, in_channels, 6, 6]) This is the return value of
+               symbol.contrib.conv2d_winograd_6x6_3x3_weight_transform
+
+- **bias**: (channels,)
+- **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "4D Tensor", "Transformed weight tensor.")
+.add_argument("bias", "1D Tensor", "Bias parameter.")
+.add_arguments(Conv2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
+.set_attr<FInferShape>("FInferShape", [](const nnvm::NodeAttrs& attrs,
+                                         std::vector<TShape> *in_shape,
+                                         std::vector<TShape> *out_shape) {
+  std::vector<TShape> in_shape_raw(*in_shape);
+
+  CHECK_EQ(in_shape_raw[1][0], 6);
+  CHECK_EQ(in_shape_raw[1][1], 6);
+  in_shape_raw[1][0] = in_shape_raw[1][2];
+  in_shape_raw[1][1] = in_shape_raw[1][3];
+  in_shape_raw[1][2] = 3;
+  in_shape_raw[1][3] = 3;
+
+  return Conv2DInferShape(attrs, &in_shape_raw, out_shape);
+})
+.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_support_level(5);
+
 NNVM_REGISTER_OP(_conv2d_grad)
   .describe(R"code(2D convolution grad.
 
