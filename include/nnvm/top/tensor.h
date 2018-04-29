@@ -251,6 +251,18 @@ struct ClipParam : public dmlc::Parameter<ClipParam> {
   }
 };
 
+struct EmbeddingParam: public dmlc::Parameter<EmbeddingParam> {
+  int input_dim;
+  int output_dim;
+
+  DMLC_DECLARE_PARAMETER(EmbeddingParam) {
+    DMLC_DECLARE_FIELD(input_dim)
+        .describe("Vocabulary size of the input indices.");
+    DMLC_DECLARE_FIELD(output_dim)
+        .describe("Dimension of the embedding vectors.");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 

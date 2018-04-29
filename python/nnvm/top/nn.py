@@ -245,3 +245,16 @@ def schedule_upsampling(_, outs, target):
         return topi.generic.schedule_injective(outs)
 
 reg.register_pattern("upsampling", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("embedding")
+def compute_dense(attrs, inputs, _):
+    """Compute definition of dense"""
+    idx, weight = inputs
+    output_dim = attrs.get_int('output_dim')
+    n = get_const_int(idx.shape[0])
+    return tvm.compute((n, output_dim), lambda i, j:
+                       weight[idx[i]][j])
+
+reg.register_schedule("embedding", _fschedule_broadcast)
+reg.register_pattern("embedding", OpPattern.BROADCAST)
