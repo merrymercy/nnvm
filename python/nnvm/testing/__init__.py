@@ -9,4 +9,5 @@ from . import resnet
 from . import vgg
 from . import dqn
 from . import dcgan
+from . import super_resolution
 from . import yolo2_detection
