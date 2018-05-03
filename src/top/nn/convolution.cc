@@ -221,7 +221,7 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 
 NNVM_REGISTER_OP(_contrib_conv2d_winograd_6x6_3x3_weight_transform)
 .describe(R"code(Helper function of symbol.contrib.conv2d_winograd_6x6_3x3_without_weight_transform
-Separate this into another operator in order to enable Precompute Pass to compute the
+Separate this into another operator in order to enable PrecomputePrune Pass to compute the
 weight transformation in advance.
 
 - **weight**: (channels, in_channels, 3, 3])
@@ -288,6 +288,83 @@ NNVM_REGISTER_OP(_contrib_conv2d_winograd_6x6_3x3_without_weight_transform)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(5);
+
+
+
+NNVM_REGISTER_OP(_contrib_conv2d_spatial_pack_weight_prepack)
+    .describe(R"code(Helper function of symbol.contrib.conv2d_spatial_pack_without_weight_prepack
+Separate this into another operator in order to enable PrecomputePrune Pass to compute the
+weight packing in advance.
+
+- **weight**: (channels, in_channels, kernel_height, kernel_width])
+)code" NNVM_ADD_FILELINE)
+    .add_argument("weight", "4D Tensor", "Weight tensor.")
+    .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+      return std::vector<std::string>{"weight"};
+    })
+    .set_attr<FInferShape>("FInferShape", [](const nnvm::NodeAttrs& attrs,
+                                             std::vector<TShape> *in_shape,
+                                             std::vector<TShape> *out_shape) {
+      const TShape &wshape = (*in_shape)[0];
+      const int block = std::atoi(attrs.dict.at("block_factor").c_str());
+
+      CHECK_EQ(wshape.ndim(), 4);
+      CHECK_EQ(wshape[0] % block, 0);
+
+      TShape oshape(5);
+      oshape[0] = wshape[0] / block;
+      oshape[1] = wshape[1];
+      oshape[2] = wshape[2];
+      oshape[3] = wshape[3];
+      oshape[4] = block;
+
+      out_shape->clear();
+      out_shape->push_back(oshape);
+      return true;
+    })
+    .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+    .set_num_outputs(1)
+    .set_num_inputs(1)
+    .set_support_level(5);
+
+NNVM_REGISTER_OP(_contrib_conv2d_spatial_pack_without_weight_prepack)
+    .describe(R"code(Compute conv2d by spatial pack tiling strategy
+
+- **data**: Input is 4D array of shape  (batch_size, in_channels, height, width)
+- **weight**: (channels // block_factor, in_channels, kernel_height, kernel_width, block_factor])
+           This is the return symbol of symbol.contrib.conv2d_spatial_pack_weight_prepack
+           Weight pre-packing is done in that symbol and can be computed in advance by PrecomputePrune pass
+
+- **bias**: (channels,)
+- **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
+)code" NNVM_ADD_FILELINE)
+    .add_argument("data", "4D Tensor", "Input data.")
+    .add_argument("weight", "4D Tensor", "Transformed weight tensor.")
+    .add_argument("bias", "1D Tensor", "Bias parameter.")
+    .add_arguments(Conv2DParam::__FIELDS__())
+    .set_attr_parser(ParamParser<Conv2DParam>)
+    .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
+    .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
+    .set_attr<FInferShape>("FInferShape", [](const nnvm::NodeAttrs& attrs,
+                                             std::vector<TShape> *in_shape,
+                                             std::vector<TShape> *out_shape) {
+      const TShape &wshape = (*in_shape)[1];
+
+      TShape raw_wshape(4);
+      raw_wshape[0] = wshape[0] * wshape[4];
+      raw_wshape[1] = wshape[1];
+      raw_wshape[2] = wshape[2];
+      raw_wshape[3] = wshape[3];
+
+      std::vector<TShape> in_shape_raw(*in_shape);
+      in_shape_raw[1] = raw_wshape;
+
+      return Conv2DInferShape(attrs, &in_shape_raw, out_shape);
+    })
+    .set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+    .set_num_outputs(1)
+    .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+    .set_support_level(5);
 
 NNVM_REGISTER_OP(_conv2d_grad)
   .describe(R"code(2D convolution grad.
